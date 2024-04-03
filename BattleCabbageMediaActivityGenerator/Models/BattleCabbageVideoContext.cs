@@ -95,6 +95,8 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<Purchase>(entity =>
         {
+            entity.HasKey(e => e.PurchaseId);
+            entity.Property(e => e.PurchaseId).UseIdentityColumn();
             entity.ToTable("Purchases", "app");
 
             entity.HasMany(d => d.PaymentCards).WithMany(p => p.Purchases);
@@ -146,7 +148,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
             entity.HasOne(entity => entity.Return).WithOne(entity => entity.Rental)
                 .HasForeignKey<Rental>(entity => entity.RentalId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_Returns_Rentals");
 
             entity.HasOne(d => d.PurchaseLineItem).WithOne(p => p.Rental).HasForeignKey<Rental>("PurchaseLineItemId");
@@ -158,7 +160,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
             entity.HasOne(d => d.Rental).WithOne(p => p.Return)
                 .HasForeignKey<Return>("RentalId")
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_Returns_Rentals");
 
             entity.HasOne(d => d.LateChargeLineItem).WithOne(p => p.Return).HasForeignKey<Return>("LateChargeLineItemId");
@@ -166,6 +168,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
+            entity.HasKey(e => e.UserId);
             entity.ToTable("Users", "app");
 
             entity.Property(e => e.Email).HasMaxLength(150);

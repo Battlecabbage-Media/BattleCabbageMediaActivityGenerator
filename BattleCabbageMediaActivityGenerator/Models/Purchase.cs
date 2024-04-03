@@ -1,19 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class Purchase
 {
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int PurchaseId { get; set; }
 
     public DateTime TransactionCreatedOn { get; set; }
 
-    public int PurchasingUserId { get; set; }
-
     public int PurchaseLocationId { get; set; }
-
-    public int PaymentCardId { get; set; }
 
     public virtual ICollection<UserCreditCard> PaymentCards { get; set; } = new List<UserCreditCard>();
 
