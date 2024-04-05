@@ -5,7 +5,7 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class Kiosk
 {
-    public int KioskId { get; set; }
+    public Guid Id { get; set; }
 
     public string Address { get; set; } = null!;
 

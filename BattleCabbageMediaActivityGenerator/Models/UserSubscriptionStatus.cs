@@ -5,15 +5,15 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class UserSubscriptionStatus
 {
-    public int UserSubscriptionStatusId { get; set; }
+    public Guid Id { get; set; }
 
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
 
     public int RenewalDay { get; set; }
 
     public bool Active { get; set; }
 
-    public int? MostRecentSubscriptionPurchaseId { get; set; }
+    public Guid? MostRecentSubscriptionPurchaseId { get; set; }
 
     public virtual User User { get; set; } = null!;
 

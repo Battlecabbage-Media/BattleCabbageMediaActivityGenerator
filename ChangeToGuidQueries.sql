@@ -178,6 +178,13 @@ JOIN dbo.PurchaseUserHold as puh ON puh.PurchasesPurchaseId = p.PurchaseId
 JOIN app.Users as u ON puh.PurchasingUsersUserId = u.UserId
 
 INSERT INTO app.[PurchaseUserCreditCard]
-SELECT COUNT(*) FROM app.Purchases as p
-JOIN dbo.[PurchaseUserCreditCardHold] as puh ON puh.PurchasesPurchaseId = p.PurchaseId
-RIGHT OUTER JOIN app.UserCreditCards as u ON puh.[PaymentCardsCreditCardId] = u.CreditCardId
+SELECT uc.Id as [PaymentCardsCreditCardId], p.Id as PurchasesPurchaseId FROM app.Purchases as p
+JOIN dbo.PurchaseUserHold as puh ON puh.PurchasesPurchaseId = p.PurchaseId
+JOIN app.UserCreditCards as uc ON uc.UserId = p.PurchasingUserId
+
+select count(*) FROM app.UserCreditCards
+select count(*) from app.Users
+select count(distinct PurchasingUserId) FROM app.Purchases
+
+
+

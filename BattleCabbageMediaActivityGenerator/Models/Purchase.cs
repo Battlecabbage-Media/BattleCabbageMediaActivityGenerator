@@ -7,11 +7,11 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 public partial class Purchase
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int PurchaseId { get; set; }
+    public Guid Id { get; set; }
 
     public DateTime TransactionCreatedOn { get; set; }
 
-    public int PurchaseLocationId { get; set; }
+    public Guid PurchaseLocationId { get; set; }
 
     public virtual ICollection<UserCreditCard> PaymentCards { get; set; } = new List<UserCreditCard>();
 

@@ -6,8 +6,7 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class User
 {
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int UserId { get; set; }
+    public Guid Id { get; set; }
 
     public string FirstName { get; set; } = null!;
 

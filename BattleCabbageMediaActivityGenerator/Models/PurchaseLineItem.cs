@@ -5,15 +5,15 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class PurchaseLineItem
 {
-    public int PurchaseLineItemId { get; set; }
+    public Guid Id { get; set; }
 
-    public int ItemId { get; set; }
+    public Guid ItemId { get; set; }
 
     public int Quantity { get; set; }
 
     public decimal? TotalPrice { get; set; }
 
-    public int PurchaseId { get; set; }
+    public Guid PurchaseId { get; set; }
 
     public virtual Inventory Item { get; set; } = null!;
 

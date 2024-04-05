@@ -55,7 +55,7 @@ namespace BattleCabbageMediaActivityGenerator
         {
             _context = context;
             _logger = logger;
-            internet_kiosk = _context.Kiosks.Find(999999);
+            internet_kiosk = _context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC"));
         }
 
         public async Task GeneratePastActivity(DateTime startDate, DateTime endDate)
@@ -95,9 +95,9 @@ namespace BattleCabbageMediaActivityGenerator
             var inventoryItems = _context.Inventories.ToList();
 
             // Locally pull the late fee and rental fee so we don't have to keep hitting the database
-            var lateFee = inventoryItems.Where(i => i.InventoryId == 2).First().CurrentPrice;
-            var rentalFee = inventoryItems.Where(i => i.InventoryId == 1).First().CurrentPrice;
-            var subscriptionFee = inventoryItems.Where(i => i.InventoryId == 3).First().CurrentPrice;
+            var lateFee = inventoryItems.Where(i => i.Id == Guid.Parse("40A9154F-E4F5-489A-A123-186742C27E91")).First().CurrentPrice;
+            var rentalFee = inventoryItems.Where(i => i.Id == Guid.Parse("7D2E030E-9F97-4ED0-AB21-5C46D93E840E")).First().CurrentPrice;
+            var subscriptionFee = inventoryItems.Where(i => i.Id == Guid.Parse("62384FE9-3A3D-4580-9199-41F2ECD5E318")).First().CurrentPrice;
 
             // 5 minute loop means 288 generations per day
             if (CheckChances(_dailyUserGenerationCount, 288))
@@ -134,35 +134,9 @@ namespace BattleCabbageMediaActivityGenerator
                 _logger.LogInformation("Creating new subscription based on randomization.");
                 var _potentialNewSubscriber = _context.UserSubscriptionStatuses.Where(u => u.Active == false).Include(u => u.User).ThenInclude(uc => uc.UserCreditCards).OrderBy(u => Guid.NewGuid()).First();
                 _potentialNewSubscriber.Active = true;
-                _potentialNewSubscriber.RenewalDay = currentGenerationTime.Day > 28 ? 1 : currentGenerationTime.Day;
+                _potentialNewSubscriber.RenewalDay = currentGenerationTime.Day + 1 > 28 ? 1 : currentGenerationTime.Day + 1;
 
-                var purchase = new Models.Purchase
-                {
-                    TransactionCreatedOn = currentGenerationTime,
-                    PurchaseLocation = internet_kiosk
-                };
-
-
-
-                purchase.PaymentCards.Add(_potentialNewSubscriber.User.UserCreditCards.First());
-
-
-                purchase.PurchasingUsers.Add(_potentialNewSubscriber.User);
-                if (!(_context.Users.Local.Any(e => e.UserId == purchase.PurchasingUsers.First().UserId)))
-                    _context.Attach(purchase.PurchasingUsers.First());
-
-                var purchaseLineItem = new Models.PurchaseLineItem
-                {
-                    ItemId = 3,
-                    Quantity = 1,
-                    TotalPrice = subscriptionFee
-                };
-
-                _potentialNewSubscriber.MostRecentSubscriptionPurchase = purchaseLineItem;
-                _context.Attach(purchaseLineItem);
-
-                await _context.AddAsync(purchase);
-                _context.Update(_potentialNewSubscriber);
+                _context.Entry(_potentialNewSubscriber).State = EntityState.Modified;
             }
 
 
@@ -222,7 +196,7 @@ namespace BattleCabbageMediaActivityGenerator
             int returnCount = 0;
 
             var rentalList = new List<Models.Rental>();
-            var kioskList = new List<int>();
+            var kioskList = new List<Guid>();
             // Generate rentals for users based on the number of rentals we should have per loop
             // To have a rental, we need to make a purchase, so we'll generate a purchase for each rental
             // To do that we also need to decide on how many rentals a user is making (1 - 3)
@@ -240,7 +214,7 @@ namespace BattleCabbageMediaActivityGenerator
 
                 users_that_can_rent.Remove(user);
                 
-                _logger.LogDebug($"User chosen: {user.UserId}");
+                _logger.LogDebug($"User chosen: {user.Id}");
 
                 _logger.LogDebug($"Checking for unreturned rentals");
                 // To handle this running multiple copies at once for faster loading, we are ignoring the unreturned rentals older than two months
@@ -252,9 +226,9 @@ namespace BattleCabbageMediaActivityGenerator
                 var kiosk = _context.Kiosks.Where(k => k.State == user.UserAddresses.First().State).OrderBy(k => Guid.NewGuid()).First();
 
 
-                kioskList.Add(kiosk.KioskId);
+                kioskList.Add(kiosk.Id);
 
-                _logger.LogDebug($"Kiosk chosen: {kiosk.KioskId}");
+                _logger.LogDebug($"Kiosk chosen: {kiosk.Id}");
 
                 int rentalCount = _r.Number(1, 3);
                 var purchase = new Models.Purchase
@@ -273,7 +247,7 @@ namespace BattleCabbageMediaActivityGenerator
                     _logger.LogDebug($"Adding Purchase and Rental {j + 1} of {rentalCount}");
                     PurchaseLineItem purchaselineitem = new Models.PurchaseLineItem
                     {
-                        ItemId = 1,
+                        ItemId = Guid.Parse("7D2E030E-9F97-4ED0-AB21-5C46D93E840E"),
                         Quantity = 1,
                         TotalPrice = rentalFee
                     };
@@ -305,7 +279,7 @@ namespace BattleCabbageMediaActivityGenerator
                 {
                     foreach (var rental in unReturnedRentals)
                     {
-                        _logger.LogDebug($"Adding return for rental {rental.RentalId}");
+                        _logger.LogDebug($"Adding return for rental {rental.Id}");
 
                         Return return_item = new Models.Return
                         {
@@ -319,7 +293,7 @@ namespace BattleCabbageMediaActivityGenerator
                             var lateDaysCharged = (return_item.LateDays > 30 ? 30 : return_item.LateDays);
                             PurchaseLineItem return_purchase = new Models.PurchaseLineItem
                             {
-                                ItemId = 2,
+                                ItemId = Guid.Parse("40A9154F-E4F5-489A-A123-186742C27E91"),
                                 Quantity = lateDaysCharged,
                                 TotalPrice = lateDaysCharged * lateFee
                             };
@@ -356,7 +330,7 @@ namespace BattleCabbageMediaActivityGenerator
                 var rental = _r.ListItem(potentialReturns);
 
 
-                _logger.LogDebug($"Adding return for rental {rental.RentalId}, user {rental.User.Email}");
+                _logger.LogDebug($"Adding return for rental {rental.Id}, user {rental.User.Email}");
                 Return return_item = new Models.Return
                 {
                     Rental = rental,
@@ -370,7 +344,7 @@ namespace BattleCabbageMediaActivityGenerator
                         TransactionCreatedOn = currentGenerationTime
                     };
 
-                    var kiosk = _context.Kiosks.Where(k => k.KioskId == rental.PurchaseLineItem.Purchase.PurchaseLocationId).First();
+                    var kiosk = _context.Kiosks.Where(k => k.Id == rental.PurchaseLineItem.Purchase.PurchaseLocationId).First();
 
                     purchase.PurchaseLocation = kiosk;
 
@@ -385,7 +359,7 @@ namespace BattleCabbageMediaActivityGenerator
                     var lateDaysCharged = (return_item.LateDays > 30 ? 30 : return_item.LateDays);
                     var late_return_line_item = new Models.PurchaseLineItem
                     {
-                        ItemId = 2,
+                        ItemId = Guid.Parse("40A9154F-E4F5-489A-A123-186742C27E91"),
                         Quantity = lateDaysCharged,
                         TotalPrice = lateDaysCharged * lateFee
                     };
@@ -433,7 +407,7 @@ namespace BattleCabbageMediaActivityGenerator
 
                     var purchaseLineItem = new Models.PurchaseLineItem
                     {
-                        ItemId = 3,
+                        ItemId = Guid.Parse("62384FE9-3A3D-4580-9199-41F2ECD5E318"),
                         Quantity = 1,
                         TotalPrice = subscriptionFee
                     };

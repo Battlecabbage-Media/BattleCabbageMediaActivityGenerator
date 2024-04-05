@@ -5,15 +5,15 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class Return
 {
-    public int ReturnId { get; set; }
+    public Guid Id { get; set; }
 
-    public int RentalId { get; set; }
+    public Guid RentalId { get; set; }
 
     public DateTime ReturnDate { get; set; }
 
     public int LateDays { get; set; }
 
-    public int? LateChargeLineItemId { get; set; }
+    public Guid? LateChargeLineItemId { get; set; }
 
     public virtual PurchaseLineItem LateChargeLineItem { get; set; } = null!;
 

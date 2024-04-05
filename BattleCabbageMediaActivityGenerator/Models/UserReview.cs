@@ -5,7 +5,7 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class UserReview
 {
-    public int UserReviewId { get; set; }
+    public Guid Id { get; set; }
 
     public int MovieId { get; set; }
 
@@ -15,7 +15,7 @@ public partial class UserReview
 
     public DateTime CreatedOn { get; set; }
 
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }
 
     public virtual Movie Movie { get; set; } = null!;
 

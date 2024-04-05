@@ -5,7 +5,7 @@ namespace BattleCabbageMediaActivityGenerator.Models;
 
 public partial class Inventory
 {
-    public int InventoryId { get; set; }
+    public Guid Id { get; set; }
 
     public string ItemDescription { get; set; } = null!;
 

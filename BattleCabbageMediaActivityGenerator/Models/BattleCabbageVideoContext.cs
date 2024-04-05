@@ -95,8 +95,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<Purchase>(entity =>
         {
-            entity.HasKey(e => e.PurchaseId);
-            entity.Property(e => e.PurchaseId).UseIdentityColumn();
+            entity.HasKey(e => e.Id);
             entity.ToTable("Purchases", "app");
 
             entity.HasMany(d => d.PaymentCards).WithMany(p => p.Purchases);
@@ -125,11 +124,11 @@ public partial class BattleCabbageVideoContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_PurchaseLineItems_Purchases");
 
-            entity.HasOne(d => d.Rental).WithOne(p => p.PurchaseLineItem).HasForeignKey<PurchaseLineItem>("PurchaseLineItemId");
+            entity.HasOne(d => d.Rental).WithOne(p => p.PurchaseLineItem).HasForeignKey<PurchaseLineItem>("Id");
 
-            entity.HasOne(d => d.Return).WithOne(p => p.LateChargeLineItem).HasForeignKey<PurchaseLineItem>("PurchaseLineItemId");
+            entity.HasOne(d => d.Return).WithOne(p => p.LateChargeLineItem).HasForeignKey<PurchaseLineItem>("Id");
 
-            entity.HasOne(d => d.UserSubscriptionStatus).WithOne(p => p.MostRecentSubscriptionPurchase).HasForeignKey<PurchaseLineItem>("PurchaseLineItemId");
+            entity.HasOne(d => d.UserSubscriptionStatus).WithOne(p => p.MostRecentSubscriptionPurchase).HasForeignKey<PurchaseLineItem>("Id");
         });
 
         modelBuilder.Entity<Rental>(entity =>
@@ -147,7 +146,7 @@ public partial class BattleCabbageVideoContext : DbContext
                 .HasConstraintName("FK_Rentals_Users");
 
             entity.HasOne(entity => entity.Return).WithOne(entity => entity.Rental)
-                .HasForeignKey<Rental>(entity => entity.RentalId)
+                .HasForeignKey<Rental>(entity => entity.Id)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_Returns_Rentals");
 
@@ -168,7 +167,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasKey(e => e.UserId);
+            entity.HasKey(e => e.Id);
             entity.ToTable("Users", "app");
 
             entity.Property(e => e.Email).HasMaxLength(150);
@@ -183,7 +182,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<UserAddress>(entity =>
         {
-            entity.HasKey(e => e.AddressId);
+            entity.HasKey(e => e.Id);
 
             entity.ToTable("UserAddresses", "app");
 
@@ -201,7 +200,7 @@ public partial class BattleCabbageVideoContext : DbContext
 
         modelBuilder.Entity<UserCreditCard>(entity =>
         {
-            entity.HasKey(e => e.CreditCardId);
+            entity.HasKey(e => e.Id);
 
             entity.ToTable("UserCreditCards", "app");
 
