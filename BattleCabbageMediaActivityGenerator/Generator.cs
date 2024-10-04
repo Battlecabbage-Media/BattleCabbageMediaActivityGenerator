@@ -8,16 +8,23 @@ using BattleCabbageMediaActivityGenerator.Models;
 using Bogus;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
 
 namespace BattleCabbageMediaActivityGenerator
 {
-    internal sealed class Generator : IGenerator
+    internal sealed class Generator : IHostedService, IHostedLifecycleService
     {
+        private readonly IDbContextFactory<BattleCabbageVideoContext> _contextFactory;
         private readonly Models.BattleCabbageVideoContext _context;
         private readonly ILogger _logger;
+        private readonly IConfiguration configuration;
+        IHostApplicationLifetime _lifeTime;
+
+        private CancellationTokenSource tokenSource = new CancellationTokenSource();
 
         private Randomizer _r = new Randomizer();
 
@@ -51,14 +58,94 @@ namespace BattleCabbageMediaActivityGenerator
 
         private Kiosk internet_kiosk = new Kiosk();
 
-        public Generator(Models.BattleCabbageVideoContext context, ILogger<Generator> logger)
+        public Generator(IDbContextFactory<BattleCabbageVideoContext> contextFactory, ILogger<Generator> logger, IConfiguration config, IHostApplicationLifetime lifeTime)
         {
-            _context = context;
+            _contextFactory = contextFactory;
+            configuration = config;
+            _context = _contextFactory.CreateDbContext();
             _logger = logger;
-            internet_kiosk = _context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC"));
+            _lifeTime = lifeTime;
+            
+            lifeTime.ApplicationStopping.Register(() =>
+            {
+                _logger.LogInformation("Stopping generation via ApplicationStopping.");
+                tokenSource.Cancel();
+            });
+
+            if (_context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC")) != null)
+            {
+#nullable disable
+                internet_kiosk = _context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC"));
+#nullable enable
+                
+            } else
+            {
+                _logger.LogError("No internet kiosk found.");
+                throw new Exception("No internet kiosk found.");
+            }
         }
 
-        public async Task GeneratePastActivity(DateTime startDate, DateTime endDate)
+        async Task IHostedService.StartAsync(CancellationToken cancellationToken)
+        {
+            if (configuration != null && configuration.GetValue<bool>("GEN_PAST_DATA"))
+            {
+                DateTime startDate = configuration.GetValue<DateTime>("GEN_PAST_START_DATETIME");
+                if (startDate == DateTime.MinValue)
+                {
+                    _logger.LogError("No start date found.");
+                    return;
+                }
+                DateTime endDate = configuration.GetValue<DateTime>("GEN_PAST_END_DATETIME");
+                if (endDate == DateTime.MinValue)
+                {
+                    endDate = DateTime.Now;
+                }
+
+                bool resumeGeneration = configuration.GetValue<bool>("GEN_RESUME_GENERATION");
+                if (resumeGeneration)
+                {
+                    // Get the last transaction date from the database to resume generation from that point.
+                    if(_context.Purchases.Where(p => p.TransactionCreatedOn >= startDate && p.TransactionCreatedOn <= endDate).Count() > 0)
+                        startDate = _context.Purchases.Where(p => p.TransactionCreatedOn >= startDate && p.TransactionCreatedOn <= endDate).OrderByDescending(p => p.TransactionCreatedOn).First().TransactionCreatedOn;
+                }
+                try
+                {
+                    await GeneratePastActivity(startDate, endDate, tokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine($"\n{nameof(OperationCanceledException)} thrown\n");
+                }
+                finally
+                {
+                    tokenSource.Dispose();
+                }
+
+            }
+            else if (configuration != null)
+            {
+                try
+                {
+                    await GenerateCurrentActivity(tokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine($"\n{nameof(OperationCanceledException)} thrown\n");
+                }
+                finally
+                {
+                    tokenSource.Dispose();
+                }
+
+            }
+            else
+            {
+                Console.WriteLine("No configuration found.");
+                return;
+            }
+        }
+
+        public async Task GeneratePastActivity(DateTime startDate, DateTime endDate, CancellationToken token)
         {
             _logger.LogInformation($"Building initial generation settings.");
             DateTime currentGenerationTime = startDate;
@@ -70,17 +157,28 @@ namespace BattleCabbageMediaActivityGenerator
                 await GenerateAsync(currentGenerationTime);
                 _logger.LogInformation($"Generated activity for {currentGenerationTime}. End Time: {DateTime.Now}");
                 currentGenerationTime = currentGenerationTime.AddMinutes(5);
+                if (token.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Cancellation requested. Stopping generation.");
+                    token.ThrowIfCancellationRequested();
+                }
             }
+            _lifeTime.StopApplication();
         }
 
-        public async Task GenerateCurrentActivity()
+        public async Task GenerateCurrentActivity(CancellationToken token)
         {
             SetGenerationSettings(DateTime.Now, true);
             while (true)
             {
                 await GenerateAsync();
                 // Sleep for 5 minutes
-                await Task.Delay(5 * 1000 * 60);
+                await Task.Delay(5 * 1000 * 60, token);
+                if (token.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Cancellation requested. Stopping generation.");
+                    token.ThrowIfCancellationRequested();
+                }
             }
             
         }
@@ -180,7 +278,7 @@ namespace BattleCabbageMediaActivityGenerator
                             }
 
                             // Refresh original values to bypass next concurrency check
-                            entry.OriginalValues.SetValues(databaseValues);
+                            entry.OriginalValues.SetValues(proposedValues);
                     }
                 }
             }
@@ -438,6 +536,7 @@ namespace BattleCabbageMediaActivityGenerator
             if (currentGenerationTime.Date > _LastGenerationDate || initialization)
             {
                 _LastGenerationDate = currentGenerationTime.Date;
+                _context.ChangeTracker.Clear();
                 
                 // Only process renewals if it's within 3 minutes of midnight
                 if(Math.Abs((currentGenerationTime - currentGenerationTime.Date).Minutes) < 3)
@@ -460,15 +559,18 @@ namespace BattleCabbageMediaActivityGenerator
                 newReleases = _context.Movies.Where(m => m.ReleaseDate > DateOnly.FromDateTime(currentGenerationTime.AddDays(-14)) && m.ReleaseDate <= DateOnly.FromDateTime(currentGenerationTime)).ToList();
                 recentMovies = _context.Movies.Where(m => m.ReleaseDate > DateOnly.FromDateTime(currentGenerationTime.AddDays(-90)) && m.ReleaseDate <= DateOnly.FromDateTime(currentGenerationTime.AddDays(-14))).ToList();
                 olderMovies = _context.Movies.Where(m => m.ReleaseDate <= DateOnly.FromDateTime(currentGenerationTime.AddDays(-90))).ToList();
+                
+                // Massive efficiency improvement by removing rentals and returns from Eager loading... Hopefully this doesn't bite me later
+                users = _context.Users.Where(u => u.CreatedOn < currentGenerationTime).Include(a => a.UserAddresses.Where(ua => ua.Default == true)).Include(c => c.UserCreditCards.Where(uc => uc.Default == true)).AsSplitQuery().ToList();
 
-                users = _context.Users.Where(u => u.CreatedOn < currentGenerationTime).Include(a => a.UserAddresses.Where(ua => ua.Default == true)).Include(c => c.UserCreditCards.Where(uc => uc.Default == true)).Include(r => r.Rentals).ThenInclude(rt => rt.Return).AsSplitQuery().ToList();
+                //.Include(a => a.UserAddresses.Where(ua => ua.Default == true)).Include(c => c.UserCreditCards.Where(uc => uc.Default == true)).Include(r => r.Rentals).ThenInclude(rt => rt.Return).AsSplitQuery()
 
                 var rentalCheckDate = currentGenerationTime.AddDays(2);
                 users_that_can_rent = users.Where(u => u.Rentals.Count() == 0 || u.Rentals.Where(r => r.ExpectedReturnDate <= rentalCheckDate).Count() > 0 || u.Rentals.Where(r => r.RentalDate >= currentGenerationTime.AddDays(-14)).Count() > 0).ToList();
 
                 potentialReturns = _context.Rentals
                     .Where(r => r.Return == null && r.ExpectedReturnDate <= rentalCheckDate && r.RentalDate > currentGenerationTime.AddDays(-14) && r.RentalDate < currentGenerationTime)
-                    .Include(p => p.PurchaseLineItem).ThenInclude(pl => pl.Purchase).Include(r => r.User).ThenInclude(u => u.UserCreditCards).ToList();
+                    .Include(p => p.PurchaseLineItem).ThenInclude(pl => pl.Purchase).Include(r => r.User).ThenInclude(u => u.UserCreditCards).AsSplitQuery().ToList();
 
                 _returnsToday = (int)(potentialReturns.Count() * _returnChance);
             }
@@ -480,6 +582,19 @@ namespace BattleCabbageMediaActivityGenerator
             else
             {
                 rentalModifier = _r.Number(-3, 3);
+            }
+
+            if (_context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC")) != null)
+            {
+#nullable disable
+                internet_kiosk = _context.Kiosks.Find(Guid.Parse("A4A10FC3-B6A1-44F6-ACD4-3E73F0224BDC"));
+#nullable enable
+
+            }
+            else
+            {
+                _logger.LogError("No internet kiosk found.");
+                throw new Exception("No internet kiosk found.");
             }
 
             int returnModifier = (int)(_r.Float(-0.12f, 0.12f) * (_returnsToday/288));
@@ -532,6 +647,39 @@ namespace BattleCabbageMediaActivityGenerator
             {
                 return olderMovies.Where(m => m.PopularityScore > 7).OrderBy(m => Guid.NewGuid()).First();
             }
+        }
+
+        Task IHostedService.StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task IHostedLifecycleService.StartingAsync(CancellationToken cancellationToken)
+        {
+            //_logger.LogInformation("1. StartingAsync has been called.");
+
+            return Task.CompletedTask;
+        }
+
+        Task IHostedLifecycleService.StartedAsync(CancellationToken cancellationToken)
+        {
+            //_logger.LogInformation("3. StartedAsync has been called.");
+
+            return Task.CompletedTask;
+        }
+
+        Task IHostedLifecycleService.StoppingAsync(CancellationToken cancellationToken)
+        {
+            //_logger.LogInformation("6. StoppingAsync has been called.");
+
+            return Task.CompletedTask;
+        }
+
+        Task IHostedLifecycleService.StoppedAsync(CancellationToken cancellationToken)
+        {
+            //_logger.LogInformation("8. StoppedAsync has been called.");
+
+            return Task.CompletedTask;
         }
     }
 }

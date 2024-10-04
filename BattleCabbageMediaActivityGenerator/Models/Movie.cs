@@ -17,7 +17,7 @@ public partial class Movie
 
     public string MpaaRating { get; set; } = null!;
 
-    public double PopularityScore { get; set; }
+    public decimal PopularityScore { get; set; }
 
     public int GenreId { get; set; }
 

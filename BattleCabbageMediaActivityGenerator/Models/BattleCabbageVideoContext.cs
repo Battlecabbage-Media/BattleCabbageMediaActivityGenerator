@@ -80,7 +80,7 @@ public partial class BattleCabbageVideoContext : DbContext
             entity.Property(e => e.MpaaRating)
                 .HasMaxLength(5)
                 .HasColumnName("mpaa_rating");
-            entity.Property(e => e.PopularityScore).HasColumnName("popularity_score");
+            entity.Property(e => e.PopularityScore).HasColumnName("popularity_score").HasColumnType("decimal(18, 2)");
             entity.Property(e => e.PosterUrl)
                 .HasMaxLength(500)
                 .HasColumnName("poster_url");
